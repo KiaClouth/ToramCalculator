@@ -24,12 +24,12 @@ const MAGIC_CANNON_TEMPLATE_ID = "vh6phwi59yl8isvadjw6ybyu";
 
 const magicArrowActiveDefinition = `root {
 	sequence {
-		action [animation,"skill.chanting"]
+		action [state,"skill.chanting"]
 		wait [$currentSkill.lifecycle.chanting]
-		action [animation,"skill.startup"]
+		action [state,"skill.startup"]
 		wait [$currentSkill.lifecycle.startup]
 		action [singleAttack, $targetId, "magic", "magic", "(((self.lv - target.lv + self.atk.m) * (1 - target.red.m) - target.def.m * (1 - self.pie.m)) + 90+skillLv*5) * (65+skillLv*6) / 100", "Math.floor((skillLv-1)/2)+4", ["is_place"], [], true, "(0.5)*1000"]
-		action [animation,"skill.recovery"]
+		action [state,"skill.recovery"]
 		wait [$currentSkill.lifecycle.recovery]
 	}
 }`;
@@ -38,18 +38,18 @@ const magicCannonActiveDefinition = `root {
 	selector {
 		sequence {
 			condition [hasBuff,"魔法炮充能buff"]
-			action [animation,"skill.startup"]
+			action [state,"skill.startup"]
 			wait [$currentSkill.lifecycle.startup]
 			action [lineAttack,$targetId,"magic","magic",$伤害计算公式,1,$伤害标签,[],true,3]
 			action [removeBuff,"魔法炮充能buff"]
-			action [animation,"skill.recovery"]
+			action [state,"skill.recovery"]
 			wait [$currentSkill.lifecycle.recovery]
 		}
 		sequence {
-			action [animation,"skill.startup"]
+			action [state,"skill.startup"]
 			wait [$currentSkill.lifecycle.startup]
 			action [addBuff,"魔法炮充能buff"]
-			action [animation,"skill.recovery"]
+			action [state,"skill.recovery"]
 			wait [$currentSkill.lifecycle.recovery]
 		}
 	}

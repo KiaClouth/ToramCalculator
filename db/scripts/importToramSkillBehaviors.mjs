@@ -1052,7 +1052,7 @@ const hasLifecycleTiming = (...values) =>
 	});
 
 const buildLifecyclePhaseLines = (name, durationArg) => [
-	`\t\taction [animation, ${toMdslString(`skill.${name}`)}]`,
+	`\t\taction [state, ${toMdslString(`skill.${name}`)}]`,
 	`\t\twait [${durationArg}]`,
 ];
 

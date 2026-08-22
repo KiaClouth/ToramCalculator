@@ -449,15 +449,15 @@ export const CommonActionPool = {
 		},
 	),
 
-	/** 技能作者使用的语义阶段节点；只发布逻辑状态，不携带动画资源或时长。 */
-	animation: defineAction(
+	/** 技能作者使用的语义状态节点；只声明逻辑状态，不携带动画资源或时长。 */
+	state: defineAction(
 		z
 			.object({
-				name: MemberStateNameSchema.meta({ description: "成员动作阶段名" }),
+				name: MemberStateNameSchema.meta({ description: "成员逻辑状态名" }),
 			})
-			.meta({ description: "发布成员动作阶段；不携带动画资源或时长" }),
+			.meta({ description: "声明成员逻辑状态；不携带动画资源或时长" }),
 		(context, input, capabilities) => {
-			log.debug(`👤 [${context.name}] animation`, input.name);
+			log.debug(`👤 [${context.name}] state`, input.name);
 			capabilities.declareState(input.name);
 			return State.SUCCEEDED;
 		},

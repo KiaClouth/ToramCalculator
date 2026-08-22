@@ -4,16 +4,16 @@ import type { MemberSharedRuntime } from "../types";
 import { CommonActionPool } from "./CommonActions";
 import { actionPoolToInvokers } from "./uitls";
 
-describe("CommonActions.animation", () => {
+describe("CommonActions.state", () => {
 	it("把状态名称传给成员能力", () => {
 		const declareState = vi.fn();
-		// 本测试只验证 animation 动作的参数映射，其余成员能力不会被调用。
+		// 本测试只验证 state 动作的参数映射，其余成员能力不会被调用。
 		const capabilities = { declareState } as unknown as MemberBtCapabilities<string>;
 		// invoker 只读取 name 生成日志，其余 BT 黑板字段不参与该动作。
 		const context = { name: "测试成员" } as unknown as MemberSharedRuntime;
 		const invokers = actionPoolToInvokers(context, CommonActionPool, capabilities);
 
-		invokers.animation.call(context, "skill.chanting");
+		invokers.state.call(context, "skill.chanting");
 
 		expect(declareState).toHaveBeenCalledWith("skill.chanting");
 	});

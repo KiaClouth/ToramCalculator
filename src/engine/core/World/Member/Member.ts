@@ -351,7 +351,7 @@ export abstract class Member<
 	}
 
 	/**
-	 * 供 active effect BT 的 animation 叶子提交本 Tick 状态声明。
+	 * 供 active effect BT 的 state 叶子提交本 Tick 状态声明。
 	 * AI 行为树和其他 parallel BT 不发布成员动作状态。
 	 */
 	private declareState(name: MemberStateName): void {
