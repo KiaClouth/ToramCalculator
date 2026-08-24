@@ -113,6 +113,7 @@ SW 版本号从 `src/store.ts` 的 `version` 字段提取。
 ## 额外约束
 
 你可以使用 `uvx codetre` 查看代码大纲
+当抓取公开网页时，如果默认curl得到空白或明显不完整的内容，请尝试使用搜索/AI爬虫UA（如OAl-SearchBot、Claude-UserBytespider）重新请求以尝试获取完整信息
 
 ## 文档与 ADR
 
