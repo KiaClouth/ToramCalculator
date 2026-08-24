@@ -1,5 +1,6 @@
 import { HtmlTexture } from "@babylonjs/core/Materials/Textures";
 import { createEffect, createMemo, createSignal, type JSX, onCleanup, onMount } from "solid-js";
+import { render } from "solid-js/web";
 import { Motion } from "solid-motionone";
 import { Icons } from "~/components/ui/icons";
 import type { AbstractEngine } from "~/platform/render/babylon/runtime";
@@ -22,6 +23,8 @@ export default function ShaderButton(): JSX.Element {
 	let scene: Scene;
 	// 相机定义
 	let camera: UniversalCamera;
+	let htmlTexture: HtmlTexture | undefined;
+	let disposeHtmlButton: (() => void) | undefined;
 
 	// 主场景内容
 	onMount(async () => {
@@ -74,15 +77,24 @@ export default function ShaderButton(): JSX.Element {
 		camera.inputs.addMouseWheel();
 
 		// ---------------------------- 按钮绘制 ------------------------------
-		const htmlTexture = HtmlTexture(
-			"html",
-			<Motion.button>
-				<div class="Mask">
-					<Icons.Filled.Gamepad /> ShaderBG Button
-				</div>
-			</Motion.button>,
-			{ scene },
+		// HtmlTexture 只接受真实 HTMLElement；用脱离页面布局的 Solid 根生成按钮，并在卸载时回收该渲染根。
+		const htmlButtonRoot = document.createElement("div");
+		disposeHtmlButton = render(
+			() => (
+				<Motion.button>
+					<div class="Mask">
+						<Icons.Filled.Gamepad /> ShaderBG Button
+					</div>
+				</Motion.button>
+			),
+			htmlButtonRoot,
 		);
+		const htmlButton = htmlButtonRoot.firstElementChild;
+		if (!(htmlButton instanceof HTMLButtonElement)) {
+			disposeHtmlButton();
+			throw new Error("HtmlTexture button did not render as an HTMLButtonElement.");
+		}
+		htmlTexture = new HtmlTexture("html", htmlButton, { scene });
 
 		// 当场景中资源加载和初始化完成后
 		scene.executeWhenReady(() => {
@@ -94,6 +106,8 @@ export default function ShaderButton(): JSX.Element {
 	});
 
 	onCleanup(() => {
+		htmlTexture?.dispose();
+		disposeHtmlButton?.();
 		scene?.dispose();
 		engine?.dispose();
 	});
