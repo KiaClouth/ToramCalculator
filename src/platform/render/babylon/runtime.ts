@@ -9,6 +9,9 @@ import "./registerBuiltinShaders";
 import "@babylonjs/core/Rendering/depthRendererSceneComponent";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 import "@babylonjs/core/Layers/effectLayerSceneComponent";
+import "@babylonjs/core/Culling/ray";
+// HtmlTexture 的 WebGPU 上传路径会创建动态纹理；该扩展不随 WebGPUEngine 入口自动注册。
+import "@babylonjs/core/Engines/WebGPU/Extensions/engine.dynamicTexture";
 // NodeMaterial snippet 反序列化依赖 RegisterClass 注册表；显式加载 #LLUXAC 使用的节点块，保证序列化类名能恢复为运行时节点。
 import "@babylonjs/core/Materials/Node/Blocks/Dual/textureBlock";
 import "@babylonjs/core/Materials/Node/Blocks/addBlock";
@@ -31,6 +34,7 @@ export type { ArcRotateCameraMouseWheelInput } from "@babylonjs/core/Cameras/Inp
 export { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 export type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine";
 export { Engine } from "@babylonjs/core/Engines/engine";
+export { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine";
 export { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents";
 export { HighlightLayer } from "@babylonjs/core/Layers/highlightLayer";
 export { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
@@ -45,12 +49,15 @@ export { RegisterMaterialPlugin } from "@babylonjs/core/Materials/materialPlugin
 export { NodeMaterial } from "@babylonjs/core/Materials/Node/nodeMaterial";
 export { PBRBaseMaterial } from "@babylonjs/core/Materials/PBR/pbrBaseMaterial";
 export type { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
+export { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";
 export { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 export { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 export { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture";
+export { HtmlRaycastInteractionManager } from "@babylonjs/core/Materials/Textures/HTML/htmlRaycastInteractionManager";
+export { HtmlTexture } from "@babylonjs/core/Materials/Textures/HTML/htmlTexture";
 export { RawCubeTexture } from "@babylonjs/core/Materials/Textures/rawCubeTexture";
 export { Texture } from "@babylonjs/core/Materials/Textures/texture";
-export { Color3, Color4, Matrix } from "@babylonjs/core/Maths/math";
+export { Color3, Color4, Matrix, Vector2 } from "@babylonjs/core/Maths/math";
 export { Scalar } from "@babylonjs/core/Maths/math.scalar";
 export { Vector3 } from "@babylonjs/core/Maths/math.vector";
 export type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
