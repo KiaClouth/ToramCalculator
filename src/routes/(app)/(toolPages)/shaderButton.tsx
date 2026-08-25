@@ -5,16 +5,17 @@
  * 3. 直接保留 HtmlTexture 的原始子像素覆盖率，再将其分配给流场、白色层、黑色文字/描边和图标液态玻璃；最终按总 alpha 合成，避免颜色阈值破坏源纹理的抗锯齿。
  * 4. 仅图标遮罩可生成边缘距离、表面法线、折射位移、菲涅耳亮边和眩光；液态玻璃光学模型复刻
  *    liquid-glass-studio 的 WGSL 方案。背景流场按三个水平偏移位置分别写入颜色通道，生成左橘黄右湛蓝色散。
- * 5. 独立阴影平面用圆角矩形距离场渲染网格外阴影，主平面仍按 BUTTON_WIDTH 和 BUTTON_HEIGHT 映射并负责 DOM 点击回传。
+ * 5. 独立阴影平面用圆角矩形距离场渲染网格外阴影；原生 DOM 由 HTML-in-Canvas 保持在 canvas 子树中，
+ *    由浏览器直接处理命中、focus、Tab 和键盘事件，不经过 Babylon 射线转发。
  */
 import { createSignal, type JSX, onCleanup, onMount } from "solid-js";
 import { render } from "solid-js/web";
 import {
 	Color4,
-	HtmlRaycastInteractionManager,
+	HtmlInteractionManager,
 	HtmlTexture,
+	IsHtmlInCanvasUploadSupported,
 	MeshBuilder,
-	PointerEventTypes,
 	Scene,
 	ShaderLanguage,
 	ShaderMaterial,
@@ -599,13 +600,13 @@ export default function ShaderButton(): JSX.Element {
 	let engine: WebGPUEngine | undefined;
 	let scene: Scene | undefined;
 	let htmlTexture: HtmlTexture | undefined;
-	let interactionManager: HtmlRaycastInteractionManager | undefined;
+	let interactionManager: HtmlInteractionManager | undefined;
 	let disposeHtmlButton: (() => void) | undefined;
 	let resizeHandler: (() => void) | undefined;
-	let textureMutationObserver: MutationObserver | undefined;
 	let htmlFrame: HTMLDivElement | undefined;
 	let disposed = false;
 	let active = false;
+	let nativeInteractionCleanup: (() => void) | undefined;
 
 	/**
 	 * 初始化 TSX 到纹理再到 WGSL 平面的完整渲染路径。
@@ -617,6 +618,9 @@ export default function ShaderButton(): JSX.Element {
 		if (!canvasElement) return;
 
 		try {
+			// WICG HTML-in-Canvas 是本实现的必要能力；没有原生/已安装 polyfill 时直接停止，
+			// 避免悄悄退回 SVG 快照，保证 DOM 交互和纹理内容来自同一条原生路径。
+			canvasElement.layoutSubtree = true;
 			engine = await WebGPUEngine.CreateAsync(canvasElement, {
 				adaptToDeviceRatio: true,
 				antialias: true,
@@ -626,6 +630,11 @@ export default function ShaderButton(): JSX.Element {
 			if (disposed) {
 				engine.dispose();
 				return;
+			}
+			if (!IsHtmlInCanvasUploadSupported(engine) || typeof canvasElement.getElementTransform !== "function") {
+				throw new Error(
+					"当前浏览器没有 GPUQueue.copyElementImageToTexture；请启用原生 HTML-in-Canvas 或先安装 three-html-render polyfill。",
+				);
 			}
 
 			scene = new Scene(engine);
@@ -655,18 +664,20 @@ export default function ShaderButton(): JSX.Element {
 						style={`
 							box-sizing:border-box;
 							position:absolute;
-							left:0;
-							top:0;
+									left:0;
+									top:0;
 							width:${BUTTON_WIDTH}px;
 							height:${BUTTON_HEIGHT}px;
 							margin:0;
 							padding:0;
 							border:0;
 							border-radius:${BUTTON_FRAME_RADIUS}px;
-								background:${BUTTON_BASE_COLOR};
-							overflow:hidden;
-							appearance:none;
-							cursor:pointer;
+									background:${BUTTON_BASE_COLOR};
+									overflow:hidden;
+									appearance:none;
+									pointer-events:auto;
+									transform-origin:0 0;
+									cursor:pointer;
 						`}
 					>
 						{/* 阶段二：白色遮罩覆盖按钮中心，纯黑描边、图标和文字成为 shader 的镂空语义。 */}
@@ -733,9 +744,12 @@ export default function ShaderButton(): JSX.Element {
 				height: TEXTURE_HEIGHT,
 				scene,
 				samplingMode: Texture.TRILINEAR_SAMPLINGMODE,
-				useSvgFallback: true,
+				useSvgFallback: false,
 				width: TEXTURE_WIDTH,
 			});
+			// HtmlTexture 为避免源节点抢占 canvas 输入会暂时设置 inert；
+			// 这里使用 WICG 原生命中测试，因此必须恢复真实 button 的 focus/Tab 能力。
+			htmlButton.removeAttribute("inert");
 
 			const material = new ShaderMaterial(
 				"shader-button-material",
@@ -766,18 +780,6 @@ export default function ShaderButton(): JSX.Element {
 			);
 			shadowMaterial.setFloat("shadowOffsetY", BUTTON_SHADOW_OFFSET_Y);
 			shadowMaterial.setFloat("shadowOpacity", BUTTON_SHADOW_OPACITY);
-
-			// 原生 HTML-in-Canvas 会在 paint 事件时自动刷新；这里补充 DOM 观察，
-			// 使开发时修改描边、图标或文字也能同步刷新 SVG 降级路径中的遮罩纹理。
-			textureMutationObserver = new MutationObserver(() => {
-				htmlTexture?.requestUpdate();
-			});
-			textureMutationObserver.observe(htmlButton, {
-				attributes: true,
-				characterData: true,
-				childList: true,
-				subtree: true,
-			});
 
 			const plane = MeshBuilder.CreatePlane(
 				"shader-button-plane",
@@ -834,7 +836,8 @@ export default function ShaderButton(): JSX.Element {
 			syncHtmlTextureMipLevel();
 
 			// 阶段三：WGSL 通过黑白纹理计算遮罩梯度，扭曲流光并在镂空区域增加高光。
-			interactionManager = new HtmlRaycastInteractionManager(scene, htmlTexture, plane);
+			// HtmlInteractionManager 使用原生 DOM overlay，同步平面投影并保留浏览器的真实事件链路。
+			interactionManager = new HtmlInteractionManager(scene, htmlTexture, plane);
 			// 流场时间从组件创建时重新计时，保证首帧使用固定纹理相位而不是页面运行时长。
 			const animationStartedAt = performance.now();
 			let hovered = false;
@@ -861,8 +864,8 @@ export default function ShaderButton(): JSX.Element {
 			};
 
 			/**
-			 * 同步 Babylon 命中状态与 HTML 纹理中的内层框体，并把阴影动画重新定向到目标状态。
-			 * HtmlRaycastInteractionManager 负责把真实点击转发到 button；这里仅维护视觉反馈，避免复制 DOM 事件分发逻辑。
+			 * 同步真实 DOM 的原生 hover/active 状态与 shader uniform。
+			 * 事件监听在 button 上注册，因此 focus、Tab、键盘和 pointer 语义全部由浏览器保留。
 			 */
 			const setInteractionState = (nextHovered: boolean, nextPressed: boolean): void => {
 				if (hovered === nextHovered && pressed === nextPressed) return;
@@ -888,24 +891,21 @@ export default function ShaderButton(): JSX.Element {
 				htmlTexture?.requestUpdate();
 			};
 
-			const defaultCursor = scene.defaultCursor;
-			scene.onPointerObservable.add((pointerInfo) => {
-				const hitButton = pointerInfo.pickInfo?.hit === true && pointerInfo.pickInfo.pickedMesh === plane;
-				// HtmlTexture 的源 button 不参与浏览器原生命中测试，实际显示光标的是 canvas。
-				// 每次拾取都同步，避免 Babylon 在 pointermove 前重置 canvas 光标后留下箭头。
-				canvasElement.style.cursor = hitButton ? "pointer" : defaultCursor;
-				switch (pointerInfo.type) {
-					case PointerEventTypes.POINTERMOVE:
-						setInteractionState(hitButton, pressed);
-						break;
-					case PointerEventTypes.POINTERDOWN:
-						setInteractionState(hitButton, hitButton);
-						break;
-					case PointerEventTypes.POINTERUP:
-						setInteractionState(hitButton, false);
-						break;
-				}
-			});
+			if (!htmlButton) throw new Error("无法创建原生 HTML-in-Canvas button。");
+			const onPointerEnter = () => setInteractionState(true, pressed);
+			const onPointerLeave = () => setInteractionState(false, false);
+			const onPointerDown = () => setInteractionState(true, true);
+			const onPointerUp = () => setInteractionState(true, false);
+			htmlButton.addEventListener("pointerenter", onPointerEnter);
+			htmlButton.addEventListener("pointerleave", onPointerLeave);
+			htmlButton.addEventListener("pointerdown", onPointerDown);
+			htmlButton.addEventListener("pointerup", onPointerUp);
+			nativeInteractionCleanup = () => {
+				htmlButton?.removeEventListener("pointerenter", onPointerEnter);
+				htmlButton?.removeEventListener("pointerleave", onPointerLeave);
+				htmlButton?.removeEventListener("pointerdown", onPointerDown);
+				htmlButton?.removeEventListener("pointerup", onPointerUp);
+			};
 
 			scene.registerBeforeRender(() => {
 				const now = performance.now();
@@ -941,7 +941,7 @@ export default function ShaderButton(): JSX.Element {
 	onCleanup(() => {
 		disposed = true;
 		if (resizeHandler) window.removeEventListener("resize", resizeHandler);
-		textureMutationObserver?.disconnect();
+		nativeInteractionCleanup?.();
 		interactionManager?.dispose();
 		htmlTexture?.dispose();
 		disposeHtmlButton?.();
@@ -950,7 +950,10 @@ export default function ShaderButton(): JSX.Element {
 	});
 
 	return (
-		<canvas ref={setCanvas} class="fixed top-0 left-0 h-dvh w-dvw touch-none bg-transparent outline-none">
+		<canvas
+			ref={setCanvas}
+			class="fixed top-0 left-0 h-dvh w-dvw touch-none bg-transparent outline-none"
+		>
 			当前浏览器不支持 canvas。
 		</canvas>
 	);
