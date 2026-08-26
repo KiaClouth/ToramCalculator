@@ -12,9 +12,9 @@ import { createSignal, type JSX, onCleanup, onMount } from "solid-js";
 import { render } from "solid-js/web";
 import {
 	Color4,
-	HtmlInteractionManager,
 	HtmlTexture,
 	IsHtmlInCanvasUploadSupported,
+	Matrix,
 	MeshBuilder,
 	Scene,
 	ShaderLanguage,
@@ -23,6 +23,7 @@ import {
 	UniversalCamera,
 	Vector2,
 	Vector3,
+	Viewport,
 	WebGPUEngine,
 } from "~/platform/render/babylon/runtime";
 
@@ -600,7 +601,6 @@ export default function ShaderButton(): JSX.Element {
 	let engine: WebGPUEngine | undefined;
 	let scene: Scene | undefined;
 	let htmlTexture: HtmlTexture | undefined;
-	let interactionManager: HtmlInteractionManager | undefined;
 	let disposeHtmlButton: (() => void) | undefined;
 	let resizeHandler: (() => void) | undefined;
 	let htmlFrame: HTMLDivElement | undefined;
@@ -664,20 +664,20 @@ export default function ShaderButton(): JSX.Element {
 						style={`
 							box-sizing:border-box;
 							position:absolute;
-									left:0;
-									top:0;
+							left:0;
+							top:0;
 							width:${BUTTON_WIDTH}px;
 							height:${BUTTON_HEIGHT}px;
 							margin:0;
 							padding:0;
 							border:0;
 							border-radius:${BUTTON_FRAME_RADIUS}px;
-									background:${BUTTON_BASE_COLOR};
-									overflow:hidden;
-									appearance:none;
-									pointer-events:auto;
-									transform-origin:0 0;
-									cursor:pointer;
+							background:${BUTTON_BASE_COLOR};
+							overflow:hidden;
+							appearance:none;
+							pointer-events:auto;
+							transform-origin:0 0;
+							cursor:pointer;
 						`}
 					>
 						{/* 阶段二：白色遮罩覆盖按钮中心，纯黑描边、图标和文字成为 shader 的镂空语义。 */}
@@ -788,13 +788,10 @@ export default function ShaderButton(): JSX.Element {
 			);
 			plane.material = material;
 			plane.alphaIndex = 1;
-			// HtmlRaycastInteractionManager 依赖 POINTERMOVE 的 pickInfo 转发 hover。
-			// Babylon 默认只在按下等事件强制拾取；这里仅对主按钮启用移动拾取，并要求场景在移动时更新命中网格。
-			plane.enablePointerMoveEvents = true;
-			scene.constantlyUpdateMeshUnderPointer = true;
+			// 命中测试完全由 canvas 的 layoutsubtree 子节点交给浏览器处理，Babylon 网格不参与 pointer picking。
+			plane.isPickable = false;
 
 			// 阴影平面比按钮大出固定像素留白，避免模糊边缘被主按钮网格的边界截断。
-			// 它位于主按钮之后且不可拾取，因此不会影响 HtmlRaycastInteractionManager 的命中结果。
 			const shadowPlane = MeshBuilder.CreatePlane(
 				"shader-button-shadow-plane",
 				{ height: 1, width: SHADOW_PLANE_WIDTH / SHADOW_PLANE_HEIGHT },
@@ -832,12 +829,100 @@ export default function ShaderButton(): JSX.Element {
 				const mipLevel = Math.max(Math.log2(TEXTURE_SCALE / renderPixelRatio), 0);
 				material.setFloat("htmlTextureMipLevel", mipLevel);
 			};
+
+			const nativeTransformViewport = new Viewport(0, 0, 0, 0);
+			const projectedCenter = new Vector3();
+			const projectedRight = new Vector3();
+			const projectedUp = new Vector3();
+			const projectedWorldPoint = new Vector3();
+			const worldAxisX = new Vector3();
+			const worldAxisY = new Vector3();
+			const screenRight = new Vector3();
+			const screenUp = new Vector3();
+			let previousNativeTransform = "";
+
+			/**
+			 * 将 Babylon 平面在画布物理像素中的绘制矩阵交给 WICG API，得到真实 DOM button 的命中变换。
+			 * getElementTransform 会处理画布 CSS 尺寸、设备像素比和元素 transform-origin；这里不再维护独立 overlay 坐标。
+			 */
+			const syncNativeHtmlTransform = (): void => {
+				if (!htmlButton || !htmlTexture?.isReady() || typeof canvasElement.getElementTransform !== "function") {
+					return;
+				}
+
+				const renderWidth = engine?.getRenderWidth() ?? 0;
+				const renderHeight = engine?.getRenderHeight() ?? 0;
+				if (
+					renderWidth === 0 ||
+					renderHeight === 0 ||
+					canvasElement.clientWidth === 0 ||
+					canvasElement.clientHeight === 0
+				) {
+					return;
+				}
+
+				try {
+					camera.viewport.toGlobalToRef(renderWidth, renderHeight, nativeTransformViewport);
+					plane.computeWorldMatrix(true);
+					const boundingBox = plane.getBoundingInfo().boundingBox;
+					const center = boundingBox.centerWorld;
+					const extend = boundingBox.extendSize;
+					const world = plane.getWorldMatrix();
+					const sceneTransform = scene?.getTransformMatrix();
+					if (!sceneTransform) return;
+
+					Vector3.TransformNormalFromFloatsToRef(extend.x, 0, 0, world, worldAxisX);
+					Vector3.TransformNormalFromFloatsToRef(0, extend.y, 0, world, worldAxisY);
+					Vector3.ProjectToRef(
+						center,
+						Matrix.IdentityReadOnly,
+						sceneTransform,
+						nativeTransformViewport,
+						projectedCenter,
+					);
+					center.addToRef(worldAxisX, projectedWorldPoint);
+					Vector3.ProjectToRef(
+						projectedWorldPoint,
+						Matrix.IdentityReadOnly,
+						sceneTransform,
+						nativeTransformViewport,
+						projectedRight,
+					);
+					center.addToRef(worldAxisY, projectedWorldPoint);
+					Vector3.ProjectToRef(
+						projectedWorldPoint,
+						Matrix.IdentityReadOnly,
+						sceneTransform,
+						nativeTransformViewport,
+						projectedUp,
+					);
+
+					projectedRight.subtractToRef(projectedCenter, screenRight);
+					projectedUp.subtractToRef(projectedCenter, screenUp);
+					const drawTransform = new DOMMatrix([
+						screenRight.x * (2 / BUTTON_WIDTH),
+						screenRight.y * (2 / BUTTON_WIDTH),
+						-screenUp.x * (2 / BUTTON_HEIGHT),
+						-screenUp.y * (2 / BUTTON_HEIGHT),
+						projectedCenter.x - screenRight.x - screenUp.x,
+						projectedCenter.y - screenRight.y - screenUp.y,
+					]);
+					const cssTransform = canvasElement.getElementTransform(htmlButton, drawTransform).toString();
+					if (cssTransform !== previousNativeTransform) {
+						htmlButton.style.transform = cssTransform;
+						previousNativeTransform = cssTransform;
+					}
+				} catch {
+					// 原生 API 要求先完成一次 paint snapshot；onLoadObservable 会在首次上传后再次同步。
+				}
+			};
+
 			syncPlaneSize();
 			syncHtmlTextureMipLevel();
+			htmlTexture.onLoadObservable.addOnce(syncNativeHtmlTransform);
+			syncNativeHtmlTransform();
 
 			// 阶段三：WGSL 通过黑白纹理计算遮罩梯度，扭曲流光并在镂空区域增加高光。
-			// HtmlInteractionManager 使用原生 DOM overlay，同步平面投影并保留浏览器的真实事件链路。
-			interactionManager = new HtmlInteractionManager(scene, htmlTexture, plane);
 			// 流场时间从组件创建时重新计时，保证首帧使用固定纹理相位而不是页面运行时长。
 			const animationStartedAt = performance.now();
 			let hovered = false;
@@ -915,8 +1000,7 @@ export default function ShaderButton(): JSX.Element {
 				material.setFloat("time", (now - animationStartedAt) * 0.001 + FLOW_INITIAL_TIME);
 				shadowMaterial.setFloat("shadowOffsetY", shadowState.offsetY);
 				shadowMaterial.setFloat("shadowOpacity", shadowState.opacity);
-				// CSS inset 过渡在 SVG fallback 中不会自动进入连续纹理快照；在过渡窗口内主动请求刷新，
-				// 原生 HTML-in-Canvas 和 fallback 因而都能显示完整的 0.3 秒状态变化。
+				// CSS inset 过渡需要连续触发 canvas paint，才能让原生 HTML-in-Canvas 纹理完整显示 0.3 秒状态变化。
 				if (now < frameTransitionEndsAt) htmlTexture?.requestUpdate();
 			});
 
@@ -927,6 +1011,7 @@ export default function ShaderButton(): JSX.Element {
 				engine?.resize();
 				syncPlaneSize();
 				syncHtmlTextureMipLevel();
+				syncNativeHtmlTransform();
 			};
 			window.addEventListener("resize", resizeHandler);
 		} catch (error) {
@@ -942,7 +1027,6 @@ export default function ShaderButton(): JSX.Element {
 		disposed = true;
 		if (resizeHandler) window.removeEventListener("resize", resizeHandler);
 		nativeInteractionCleanup?.();
-		interactionManager?.dispose();
 		htmlTexture?.dispose();
 		disposeHtmlButton?.();
 		scene?.dispose();
@@ -950,10 +1034,7 @@ export default function ShaderButton(): JSX.Element {
 	});
 
 	return (
-		<canvas
-			ref={setCanvas}
-			class="fixed top-0 left-0 h-dvh w-dvw touch-none bg-transparent outline-none"
-		>
+		<canvas ref={setCanvas} class="fixed top-0 left-0 h-dvh w-dvw touch-none bg-transparent outline-none">
 			当前浏览器不支持 canvas。
 		</canvas>
 	);
