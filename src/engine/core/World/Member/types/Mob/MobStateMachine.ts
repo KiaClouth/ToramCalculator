@@ -389,23 +389,6 @@ export const createMobStateMachine = (env: MobStateMachineEnv): MemberStateMachi
 							states: {
 								空闲状态: {
 									tags: "movement-input-enabled",
-									initial: "静止",
-									states: {
-										静止: {
-											on: {
-												移动: {
-													target: "移动中",
-												},
-											},
-										},
-										移动中: {
-											on: {
-												停止移动: {
-													target: "静止",
-												},
-											},
-										},
-									},
 								},
 							},
 						},

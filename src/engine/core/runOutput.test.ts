@@ -118,7 +118,7 @@ describe("RunOutputRecorder", () => {
 			inputId: "input-1",
 			memberId: null,
 			timeMs: 0,
-			action: { type: "移动", payload: { position: { x: 1, y: 2 } } },
+			action: { type: "跳跃", payload: {} },
 		});
 		const output = recorder.finish("run-1", 100);
 		expect(output.stateHistory).toBeNull();
@@ -167,7 +167,7 @@ describe("RunOutputRecorder", () => {
 			inputId: "input-1",
 			memberId: null,
 			timeMs: 0,
-			action: { type: "移动", payload: { position: { x: 1, y: 2 } } },
+			action: { type: "跳跃", payload: {} },
 		});
 		expect(() => recorder.acceptInput("input-1", 0)).toThrow("缺少 memberId");
 		recorder.rejectInput("input-1", 0, "未绑定成员");

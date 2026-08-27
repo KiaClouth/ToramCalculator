@@ -81,4 +81,3 @@ FSM 和 BT 都声明逻辑状态，由成员投影器按结构规则选择最终
 - [ADR 0027：场景解析统一产出逻辑输入与静态世界资源](./0027-scene-resolution-for-logic-and-visual-inputs.md)
 - [ADR 0050：实时状态的传输语义分类](./0050-realtime-state-transport-semantics.md)
 - [ADR 0052：高频世界状态统一使用实时状态 SAB](./0052-realtime-world-state-uses-unified-sab.md)
-- [实时世界状态 SAB 迁移计划](../plans/realtime-world-state-sab-migration.md)

@@ -70,9 +70,7 @@ export type PlayerFSMEvent = MemberFSMEvent<PlayerSpecificEvent>;
 
 // ─── Context / Env ──────────────────────────────────────────────────────────
 
-export interface PlayerFSMContext extends MemberFSMContext {
-	canMove: boolean;
-}
+export interface PlayerFSMContext extends MemberFSMContext {}
 
 export interface PlayerFSMEnv extends MemberStateMachineEnv<PlayerAttrKey, PlayerFSMEvent, PlayerRuntime> {
 	runtime: PlayerRuntime;
@@ -193,11 +191,6 @@ export const playerFSM = (env: PlayerFSMEnv): MemberStateMachine<PlayerFSMEvent,
 				根据角色配置生成初始状态: () => {
 					log.debug(`[${env.name}] 根据角色配置生成初始状态`);
 				},
-				设置允许移动: machineSetup.assign({ canMove: true }),
-				设置禁止移动: machineSetup.assign({ canMove: false }),
-				更新可移动性: machineSetup.assign(() => {
-					return { canMove: false };
-				}),
 				开始跳跃: () => {
 					if (!env.runtime.grounded) return;
 					env.runtime.grounded = false;
@@ -375,9 +368,6 @@ export const playerFSM = (env: PlayerFSMEnv): MemberStateMachine<PlayerFSMEvent,
 				存在后续连击: () => {
 					return false;
 				},
-				可移动: ({ context }) => {
-					return context.canMove;
-				},
 				没有活动技能行为: () => !env.btManager.hasActiveEffectBt(),
 			},
 		})
@@ -385,7 +375,6 @@ export const playerFSM = (env: PlayerFSMEnv): MemberStateMachine<PlayerFSMEvent,
 			context: {
 				isAlive: true,
 				createdAtTimeMs: env.runtime.currentTimeMs,
-				canMove: true,
 			},
 			id: machineId,
 			initial: "存活",
@@ -419,23 +408,21 @@ export const playerFSM = (env: PlayerFSMEnv): MemberStateMachine<PlayerFSMEvent,
 												使用闪躲: { target: "闪躲中" },
 												使用技能: { target: "使用技能中" },
 											},
-											entry: { type: "设置允许移动" },
 										},
 										格挡中: {
 											on: {
 												结束格挡: { target: "空闲状态" },
 											},
-											entry: [{ type: "朝向当前目标" }, { type: "设置禁止移动" }],
+											entry: { type: "朝向当前目标" },
 										},
 										闪躲中: {
 											on: {
 												收到闪躲持续时间结束通知: { target: "空闲状态" },
 											},
-											entry: { type: "设置禁止移动" },
 										},
 										使用技能中: {
 											initial: "初始化技能",
-											entry: [{ type: "添加待处理技能" }, { type: "更新可移动性" }],
+											entry: { type: "添加待处理技能" },
 											exit: { type: "清空待处理技能" },
 											states: {
 												初始化技能: {
@@ -475,24 +462,6 @@ export const playerFSM = (env: PlayerFSMEnv): MemberStateMachine<PlayerFSMEvent,
 														],
 													},
 												},
-											},
-										},
-									},
-								},
-								移动状态: {
-									initial: "静止",
-									states: {
-										静止: {
-											on: {
-												移动: {
-													target: "移动中",
-													guard: { type: "可移动" },
-												},
-											},
-										},
-										移动中: {
-											on: {
-												停止移动: { target: "静止" },
 											},
 										},
 									},

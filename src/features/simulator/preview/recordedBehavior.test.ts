@@ -124,14 +124,14 @@ describe("录制成员流程编译", () => {
 		expect(() =>
 			compileRecordedActionsToMemberBehavior([
 				{
-					inputId: "move",
+					inputId: "jump",
 					memberId: "m",
 					timeMs: 900,
-					action: { type: "移动", payload: { position: { x: 1, y: 2 } } },
+					action: { type: "跳跃", payload: {} },
 					status: "accepted",
 				},
 			]),
-		).toThrow("行动录制暂不支持 accepted 输入: 移动 (move)");
+		).toThrow("行动录制暂不支持 accepted 输入: 跳跃 (jump)");
 	});
 
 	it("生成流程在不同逻辑频率下都按原模拟时刻执行行动", () => {

@@ -105,26 +105,4 @@ export class MemberController {
 		};
 		return await this.broadcastIntent(intent);
 	}
-
-	async move(x: number, y: number) {
-		const intent: IntentMessage = {
-			id: createId(),
-			timestamp: Date.now(),
-			type: "移动",
-			controllerId: this.controllerId,
-			data: { position: { x, y } },
-		};
-		return await this.broadcastIntent(intent);
-	}
-
-	async stopMove() {
-		const intent: IntentMessage = {
-			id: createId(),
-			timestamp: Date.now(),
-			type: "停止移动",
-			controllerId: this.controllerId,
-			data: {},
-		};
-		return await this.broadcastIntent(intent);
-	}
 }

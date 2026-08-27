@@ -71,4 +71,3 @@
 - [ADR 0050：实时状态的传输语义分类](./0050-realtime-state-transport-semantics.md)
 - [ADR 0052：高频世界状态统一使用实时状态 SAB](./0052-realtime-world-state-uses-unified-sab.md)
 - [ADR 0053：成员逻辑状态输出与渲染映射边界](./0053-logical-state-output-and-render-mapping.md)
-- [实时世界状态 SAB 迁移计划](../plans/realtime-world-state-sab-migration.md)

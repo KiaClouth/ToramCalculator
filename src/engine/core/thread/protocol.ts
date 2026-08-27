@@ -145,16 +145,6 @@ const IntentMessageWireSchema = z.discriminatedUnion("type", [
 	}),
 	z.object({
 		...IntentWireBaseShape,
-		type: z.literal("移动"),
-		data: z.object({ position: z.object({ x: z.number(), y: z.number() }).strict() }).strict(),
-	}),
-	z.object({
-		...IntentWireBaseShape,
-		type: z.literal("停止移动"),
-		data: z.object({}).strict(),
-	}),
-	z.object({
-		...IntentWireBaseShape,
 		type: z.literal("跳跃"),
 		data: z.object({}).strict(),
 	}),

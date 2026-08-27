@@ -31,16 +31,6 @@ export interface MemberReviveEvent extends EventObject {
 	type: "复活";
 	data: Record<string, never>;
 }
-export interface MemberMoveEvent extends EventObject {
-	id: string;
-	type: "移动";
-	data: { position: { x: number; y: number } };
-}
-export interface MemberStopMoveEvent extends EventObject {
-	id: string;
-	type: "停止移动";
-	data: Record<string, never>;
-}
 export interface MemberUseSkillEvent extends EventObject {
 	id: string;
 	type: "使用技能";
@@ -60,14 +50,8 @@ export interface MemberLandedEvent extends EventObject {
 	type: "落地";
 }
 
-/** 成员状态机公开接纳的公共控制事件；Player/Mob 专属事件通过 MemberFSMEvent 泛型显式组合。 */
-export type MemberControlEvent =
-	| MemberReviveEvent
-	| MemberMoveEvent
-	| MemberStopMoveEvent
-	| MemberUseSkillEvent
-	| MemberSelectTargetEvent
-	| MemberJumpEvent;
+/** 成员状态机公开接纳的公共控制事件；Player/Mob 专属事件通过 MemberFSMEvent 泛型显式组合。连续移动不在此列：它由移动段承载，不作为离散控制事件。 */
+export type MemberControlEvent = MemberReviveEvent | MemberUseSkillEvent | MemberSelectTargetEvent | MemberJumpEvent;
 
 export type MemberFSMEvent<TSpecificEvent extends EventObject = never> =
 	| MemberCreateEvent // 创建事件

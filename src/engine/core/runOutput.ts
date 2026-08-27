@@ -34,13 +34,6 @@ const movementBehaviorRecordSchema = z.object({
 	samples: z.array(movementBehaviorSampleSchema),
 });
 const reviveActionSchema = z.object({ type: z.literal("复活"), payload: emptyPayloadSchema }).strict();
-const moveActionSchema = z
-	.object({
-		type: z.literal("移动"),
-		payload: z.object({ position: z.object({ x: z.number(), y: z.number() }).strict() }).strict(),
-	})
-	.strict();
-const stopMoveActionSchema = z.object({ type: z.literal("停止移动"), payload: emptyPayloadSchema }).strict();
 const jumpActionSchema = z.object({ type: z.literal("跳跃"), payload: emptyPayloadSchema }).strict();
 const skillActionSchema = z
 	.object({ type: z.literal("使用技能"), payload: z.object({ skillId: z.string().min(1) }).strict() })
@@ -52,11 +45,9 @@ const selectTargetActionSchema = z
 	.object({ type: z.literal("切换目标"), payload: z.object({ targetId: z.string().min(1) }).strict() })
 	.strict();
 
-/** 运行输入的严格语义形状；目标状态只通过独立的“切换目标”动作表达。 */
+/** 运行输入的严格语义形状；目标状态只通过独立的“切换目标”动作表达。连续移动由 movementBehaviors 承载，不进入离散输入。 */
 export const RunInputActionSchema = z.discriminatedUnion("type", [
 	reviveActionSchema,
-	moveActionSchema,
-	stopMoveActionSchema,
 	jumpActionSchema,
 	skillActionSchema,
 	startGuardActionSchema,
