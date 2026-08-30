@@ -1,8 +1,8 @@
 import type { DB } from "@db/generated/zod/index";
 import type { AccountType } from "@db/schema/enums";
 import { createStore } from "solid-js/store";
-import { STORE_SCHEMA_VERSION } from "~/platform/version/schema";
 import type { Locale } from "~/locales/i18n";
+import { STORE_SCHEMA_VERSION } from "~/platform/version/schema";
 
 /**
  * 本地存储结构
@@ -155,7 +155,7 @@ export const initialStore: Store = {
 			themeVersion: "v2",
 			language: "zh-CN",
 			isAnimationEnabled: true,
-			is3DSceneEnabled: false,
+			is3DSceneEnabled: true,
 		},
 		hasDismissedPWAInstall: false,
 		statusAndSync: {
